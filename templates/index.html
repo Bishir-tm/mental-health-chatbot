@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Mental Health Support</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="chat-container">
+        <header class="chat-header">
+            <h1 class="chat-title">AI Mental Health Support</h1>
+            <button id="newChatBtn" class="new-chat-btn">New Chat</button>
+        </header>
+        
+        <main class="chat-main">
+            <div class="messages" id="messages">
+                <!-- Messages will be appended here by JavaScript -->
+            </div>
+            <div id="messagesEndRef"></div>
+        </main>
+        
+        <footer class="chat-footer">
+            <form id="chatForm" class="chat-form">
+                <input type="text" id="chatInput" class="chat-input" placeholder="Type your message here..." autocomplete="off">
+                <button type="submit" id="sendBtn" class="send-btn">Send</button>
+            </form>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

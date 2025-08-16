@@ -1,0 +1,2 @@
+Error getting AI response: 404 models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+127.0.0.1 - - [13/Aug/2025 17:21:14] "POST /api/chat HTTP/1.1" 500 -

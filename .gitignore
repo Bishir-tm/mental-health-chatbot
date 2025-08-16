@@ -1,0 +1,73 @@
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+
+# Virtual environment
+env/
+venv/
+ENV/
+.venv/
+
+# Flask instance folder (stores runtime files, configs, uploads)
+instance/
+
+# Flask cache & logs
+*.log
+*.pot
+*.mo
+*.db
+*.sqlite3
+
+# IDE/editor configs
+.vscode/
+.idea/
+*.swp
+*~
+.project
+.pydevproject
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Testing / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# Local settings
+*.env
+*.local
+.env.*
