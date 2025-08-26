@@ -1,16 +1,97 @@
-
 import os
 import json
+import re
 from flask import Flask, render_template, request, jsonify
-import google.generativeai as genai
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = Flask(__name__)
 
-# Configure the Gemini API
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# Global variables to store the model and tokenizer
+model = None
+tokenizer = None
+text_generator = None
+
+def initialize_model():
+    """Initialize TinyLLaMA model and tokenizer"""
+    global model, tokenizer, text_generator
+    
+    try:
+        print("Loading TinyLLaMA model... This may take a few minutes on first run.")
+        
+        # Model name for TinyLLaMA 1.1B
+        model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        
+        # Load tokenizer and model
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            device_map="auto" if torch.cuda.is_available() else None,
+        )
+        
+        # Create text generation pipeline
+        text_generator = pipeline(
+            "text-generation",
+            model=model,
+            tokenizer=tokenizer,
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            device=0 if torch.cuda.is_available() else -1,
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.9,
+            repetition_penalty=1.1
+        )
+        
+        print("TinyLLaMA model loaded successfully!")
+        return True
+        
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        return False
+
+def generate_response(prompt, max_length=200):
+    """Generate response using TinyLLaMA"""
+    global text_generator
+    
+    try:
+        # Format prompt for chat model
+        formatted_prompt = f"<|system|>\nYou are a helpful mental health support assistant trained in Cognitive Behavioral Therapy (CBT). Provide empathetic, supportive responses.\n<|user|>\n{prompt}\n<|assistant|>\n"
+        
+        # Generate response
+        outputs = text_generator(
+            formatted_prompt,
+            max_length=len(formatted_prompt.split()) + max_length,
+            num_return_sequences=1,
+            pad_token_id=tokenizer.eos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+        )
+        
+        # Extract the generated text
+        generated_text = outputs[0]['generated_text']
+        
+        # Extract only the assistant's response
+        if "<|assistant|>" in generated_text:
+            response = generated_text.split("<|assistant|>")[-1].strip()
+        else:
+            response = generated_text[len(formatted_prompt):].strip()
+        
+        # Clean up the response
+        response = response.replace("<|end|>", "").replace("<|endoftext|>", "").strip()
+        
+        # Limit response length
+        sentences = response.split('. ')
+        if len(sentences) > 3:
+            response = '. '.join(sentences[:3]) + '.'
+        
+        return response if response else "I understand you're going through something difficult. Can you tell me more about how you're feeling?"
+        
+    except Exception as e:
+        print(f"Error generating response: {e}")
+        return "I'm here to listen and support you. Can you share what's on your mind today?"
 
 @app.route('/')
 def index():
@@ -18,13 +99,17 @@ def index():
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
+    global text_generator
+    
+    if text_generator is None:
+        return jsonify({'error': 'Model is still loading. Please wait a moment and try again.'}), 503
+    
     data = request.get_json()
     messages = data.get('messages', [])
 
     if not messages:
         return jsonify({'error': 'No messages found.'}), 400
 
-    # The rest of the AI logic will go here
     try:
         user_input = messages[-1]['content']
         chat_history = messages[:-1]
@@ -44,59 +129,98 @@ def chat():
         return jsonify({'error': 'An error occurred while processing your request.'}), 500
 
 def assess_risk(user_input):
-    prompt = f"""You are a risk assessment expert for a mental health chatbot. Your primary responsibility is to identify any indication of a user being in an imminent crisis situation. It is crucial to avoid over-reacting to general feelings of depression or hopelessness. Only escalate if there is a clear and immediate danger.
-
-    Based on the user's input, determine if the user is in a high-risk situation requiring immediate professional help. A high-risk situation is defined by explicit statements of self-harm, a plan to self-harm, or an intent to act on suicidal thoughts immediately.
-
-    Respond with a JSON object with two keys: 'is_high_risk' (boolean) and 'response' (string).
-
-    If the user is in a high-risk situation (imminent danger):
-    1. Set is_high_risk to true.
-    2. Generate a response that is first calming and empathetic, then clearly and directly provides resources. The response should be something like: "It sounds like you are going through a very difficult time, and I want you to know that your safety is the most important thing. Please connect with someone who can support you right now. You can call the Nigerian emergency hotline at 112, or reach out to the Suicide Research and Prevention Initiative (SURPIN) at 08092106463."
-
-    If the user is NOT in a high-risk situation (no imminent danger, even if they express sadness or hopelessness):
-    1. Set is_high_risk to false.
-    2. Leave the response field empty.
-
-    User Input: {user_input}
-    """
-
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    response = model.generate_content(prompt)
+    """Assess if user input indicates high-risk situation"""
     
-    # Debugging: Print the raw response from the API
-    print("Gemini API Response (Risk Assessment):", response.text)
+    # High-risk keywords and phrases
+    high_risk_patterns = [
+        r'\b(kill myself|end my life|suicide|want to die)\b',
+        r'\b(going to hurt myself|plan to hurt|self harm)\b',
+        r'\b(can\'t go on|nothing to live for|better off dead)\b',
+        r'\b(going to end it|ready to die|want to disappear forever)\b'
+    ]
+    
+    # Check for high-risk patterns
+    user_lower = user_input.lower()
+    for pattern in high_risk_patterns:
+        if re.search(pattern, user_lower):
+            return {
+                "is_high_risk": True,
+                "response": "It sounds like you are going through a very difficult time, and I want you to know that your safety is the most important thing. Please connect with someone who can support you right now. You can call the Nigerian emergency hotline at 112, or reach out to the Suicide Research and Prevention Initiative (SURPIN) at 08092106463. You don't have to go through this alone."
+            }
+    
+    # Use AI for more nuanced assessment
+    assessment_prompt = f"""Analyze this message for signs of immediate self-harm risk. Respond with only 'HIGH_RISK' or 'LOW_RISK'.
+
+Look for explicit statements about:
+- Plans to hurt oneself
+- Immediate intent to self-harm
+- Active suicidal ideation with method or timeline
+
+Message: "{user_input}"
+
+Assessment:"""
 
     try:
-        # Attempt to parse the JSON response
-        return json.loads(response.text)
-    except json.JSONDecodeError:
-        # Handle cases where the response is not valid JSON
-        return {"is_high_risk": False, "response": ""}
+        assessment_response = generate_response(assessment_prompt, max_length=10)
+        
+        if "HIGH_RISK" in assessment_response.upper():
+            return {
+                "is_high_risk": True,
+                "response": "It sounds like you are going through a very difficult time, and I want you to know that your safety is the most important thing. Please connect with someone who can support you right now. You can call the Nigerian emergency hotline at 112, or reach out to the Suicide Research and Prevention Initiative (SURPIN) at 08092106463. You don't have to go through this alone."
+            }
+    except:
+        pass
+    
+    return {"is_high_risk": False, "response": ""}
 
 def generate_therapeutic_response(user_input, chat_history):
-    history_str = "\n".join([f"{msg['role']}: {msg['content']}" for msg in chat_history])
+    """Generate CBT-focused therapeutic response"""
+    
+    # Build conversation context
+    history_context = ""
+    if chat_history:
+        recent_messages = chat_history[-4:]  # Last 4 messages for context
+        for msg in recent_messages:
+            role = "User" if msg['role'] == 'user' else "Assistant"
+            history_context += f"{role}: {msg['content']}\n"
+    
+    # Create CBT-focused prompt
+    prompt = f"""You are a mental health support chatbot specializing in Cognitive Behavioral Therapy (CBT). Your goal is to help users identify and challenge negative thought patterns.
 
-    prompt = f"""You are a chatbot designed to provide Cognitive Behavioral Therapy (CBT)-based support. Your goal is to help users identify and challenge their negative thought patterns.
+Conversation history:
+{history_context}
 
-    User History:
-    {history_str}
+User's current message: "{user_input}"
 
-    Based on the user's input, generate a response that is:
-    1.  **Empathetic and Validating**: Start by acknowledging the user's feelings.
-    2.  **CBT-Focused**: Gently guide the user to examine their thoughts. Help them identify potential cognitive distortions (e.g., all-or-nothing thinking, catastrophizing).
-    3.  **Action-Oriented**: Encourage a small, manageable step, like reframing a thought or a simple behavioral experiment.
-    4.  **Concise**: Keep the response to a few clear, supportive sentences.
+Provide a response that is:
+1. Empathetic and validating - acknowledge their feelings
+2. CBT-focused - help identify thinking patterns or cognitive distortions
+3. Ask gentle questions to promote self-reflection
+4. Suggest a small, manageable step or reframing technique
+5. Keep it concise and supportive (2-3 sentences max)
 
-    Avoid giving generic advice. Instead, ask questions that prompt reflection.
+Response:"""
 
-    User Input: {user_input}
-    Response:"""
+    return generate_response(prompt, max_length=100)
 
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    response = model.generate_content(prompt)
-    return response.text
-
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Check if the model is loaded and ready"""
+    global text_generator
+    
+    if text_generator is None:
+        return jsonify({'status': 'loading', 'message': 'Model is still loading...'}), 503
+    else:
+        return jsonify({'status': 'ready', 'message': 'Model is ready to chat!'})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    print("Starting AI Mental Health Chatbot...")
+    print("Initializing TinyLLaMA model...")
+    
+    if initialize_model():
+        print("✅ Model loaded successfully!")
+        print("🚀 Starting Flask server...")
+        app.run(debug=True, host='127.0.0.1', port=5000)
+    else:
+        print("❌ Failed to load model. Please check your internet connection and try again.")
+        print("Make sure you have enough disk space and RAM (at least 4GB recommended).")

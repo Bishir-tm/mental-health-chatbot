@@ -1,3 +1,8 @@
-Flask
-python-dotenv
-google-generativeai
+Flask==2.3.3
+python-dotenv==1.0.0
+torch>=2.0.0
+transformers>=4.35.0
+accelerate>=0.24.0
+sentencepiece>=0.1.99
+protobuf>=3.20.0
+safetensors>=0.4.0

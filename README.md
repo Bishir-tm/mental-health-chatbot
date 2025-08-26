@@ -1,50 +1,212 @@
-# AI Mental Health Chatbot (Flask Version)
+# AI Mental Health Chatbot with TinyLLaMA
 
-This is a Flask-based replication of the AI Mental Health Chatbot application.
+An offline, local AI mental health support chatbot that uses TinyLLaMA 1.1B model to provide Cognitive Behavioral Therapy (CBT) based support. Perfect for student projects and environments where privacy and offline functionality are important.
 
-## Setup and Run Instructions
+## Features
 
-1.  **Navigate to the application directory:**
-    ```bash
-    cd C:\Users\Personal Computer\Documents\Bishir TM\flask_mental_health_chatbot
-    ```
+- 🤖 **Offline AI**: Runs TinyLLaMA 1.1B completely offline on your device
+- 🧠 **CBT-Focused**: Provides cognitive behavioral therapy techniques
+- ⚠️ **Crisis Detection**: Identifies high-risk situations and provides emergency resources
+- 🔒 **Privacy First**: All conversations stay on your device
+- 📱 **Responsive Design**: Works on desktop and mobile devices
+- 🚀 **No API Keys**: No need for external API services
 
-2.  **Install Python dependencies:**
-    It's recommended to use a virtual environment.
-    ```bash
-    python -m venv venv
-    .\venv\Scripts\activate  # On Windows
-    # source venv/bin/activate # On macOS/Linux
-    pip install -r requirements.txt
-    ```
+## System Requirements
 
-3.  **Set your Google Gemini API Key:**
-    You need a Google Gemini API key to run this application. You can obtain one from [Google AI Studio](https://aistudio.google.com/fundamentals/api_key).
+- **RAM**: At least 4GB (8GB recommended)
+- **Storage**: At least 5GB free space for model files
+- **Python**: 3.8 or higher
+- **Internet**: Required only for initial model download
 
-    Set the API key as an environment variable:
-    
-    **On Windows (Command Prompt):**
-    ```bash
-    set GOOGLE_API_KEY=YOUR_API_KEY
-    ```
-    **On Windows (PowerShell):**
-    ```powershell
-    $env:GOOGLE_API_KEY="YOUR_API_KEY"
-    ```
-    **On macOS/Linux:**
-    ```bash
-    export GOOGLE_API_KEY=YOUR_API_KEY
-    ```
-    Replace `YOUR_API_KEY` with your actual API key.
+## Quick Setup Guide
 
-4.  **Run the Flask application:**
-    ```bash
-    flask run
-    ```
+### 1. Clone or Download the Project
 
-    The application will typically run on `http://127.0.0.1:5000/`.
+```bash
+cd your-project-directory
+```
 
-## Important Notes
+### 2. Create Virtual Environment (Recommended)
 
-*   The risk assessment logic in `app.py` is a basic keyword check. For a production-grade application, you would need a more robust method to parse the AI model's output for risk assessment (e.g., structured JSON output from the model, or a more sophisticated NLP approach).
-*   The styling is a basic recreation of the original application's look and feel using plain CSS. It does not use Tailwind CSS.
+```bash
+python -m venv venv
+
+# On Windows
+venv\Scripts\activate
+
+# On macOS/Linux
+source venv/bin/activate
+```
+
+### 3. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+**Note**: The first time you install, PyTorch and other ML libraries will download (~2-3GB). This may take some time depending on your internet connection.
+
+### 4. Run the Application
+
+```bash
+python app.py
+```
+
+### 5. First Run Experience
+
+- The application will automatically download TinyLLaMA model (~2.2GB) on first run
+- You'll see "AI Model Loading..." status indicator
+- Once loaded, the status will change to "🟢 AI Model Ready"
+- The download happens only once - subsequent runs will be faster
+
+### 6. Open in Browser
+
+Navigate to `http://127.0.0.1:5000` in your web browser.
+
+## Usage Guide
+
+### Starting a Conversation
+
+- Wait for the "🟢 AI Model Ready" status indicator
+- Type your message in the input field
+- The AI will respond with CBT-focused support
+
+### Emergency Features
+
+- **Crisis Detection**: The system monitors for high-risk language
+- **Emergency Button**: Click for immediate access to crisis resources
+- **Nigerian Resources**: Includes local emergency contacts (112, SURPIN)
+
+### CBT Approach
+
+The chatbot uses Cognitive Behavioral Therapy techniques including:
+
+- Thought pattern identification
+- Cognitive distortion recognition
+- Gentle questioning for self-reflection
+- Small, manageable action suggestions
+
+## Technical Details
+
+### Model Information
+
+- **Model**: TinyLLaMA-1.1B-Chat-v1.0
+- **Size**: ~2.2GB
+- **Type**: Causal Language Model optimized for chat
+- **Performance**: Runs well on modest hardware
+
+### Architecture
+
+```
+Frontend (HTML/CSS/JS) ↔ Flask Backend ↔ TinyLLaMA Model
+```
+
+### File Structure
+
+```
+flask_mental_health_chatbot/
+├── app.py                 # Main Flask application
+├── requirements.txt       # Python dependencies
+├── .env                   # Environment variables (optional)
+├── .gitignore            # Git ignore rules
+├── README.md             # This file
+├── templates/
+│   └── index.html        # Main HTML template
+└── static/
+    ├── style.css         # Styles
+    └── script.js         # Frontend JavaScript
+```
+
+## Troubleshooting
+
+### Model Loading Issues
+
+- **Slow Loading**: First run downloads ~2.2GB. Be patient!
+- **Memory Error**: Ensure you have at least 4GB RAM available
+- **Disk Space**: Model needs ~5GB total storage space
+
+### Performance Optimization
+
+- **GPU**: If you have CUDA-compatible GPU, the model will automatically use it
+- **CPU Only**: Model runs fine on CPU but may be slower
+- **Memory**: Close other applications to free up RAM
+
+### Common Error Solutions
+
+#### "Model is still loading"
+
+- Wait for the download to complete (first run only)
+- Check your internet connection
+- Ensure sufficient disk space
+
+#### "Connection Error"
+
+- Restart the Flask application
+- Check if port 5000 is available
+- Try `python app.py` again
+
+#### "Import Error"
+
+- Ensure you're in the virtual environment
+- Run `pip install -r requirements.txt` again
+- Check Python version (3.8+ required)
+
+## Development Notes
+
+### Model Customization
+
+You can modify the model behavior by adjusting:
+
+- Temperature (creativity): `temperature=0.7`
+- Response length: `max_length` parameter
+- System prompts in the code
+
+### Adding Features
+
+- Crisis keywords can be modified in `assess_risk()` function
+- CBT prompts can be customized in `generate_therapeutic_response()`
+- UI can be enhanced by modifying templates and CSS
+
+### Performance Monitoring
+
+The app includes:
+
+- Model status checking endpoint (`/api/health`)
+- Error handling and fallbacks
+- Loading indicators for user feedback
+
+## Security & Privacy
+
+- All conversations stay on your local device
+- No data is sent to external servers after initial model download
+- Model files are cached locally for offline use
+- No logging of user conversations
+
+## Student Project Notes
+
+This implementation is perfect for:
+
+- **Academic Projects**: Demonstrates AI, NLP, and web development
+- **Privacy Research**: Shows local AI deployment
+- **Mental Health Tech**: Combines psychology with technology
+- **Full-Stack Development**: Covers frontend, backend, and ML integration
+
+## License & Ethics
+
+- Built for educational and supportive purposes
+- Not a replacement for professional mental health care
+- Includes crisis detection and emergency resources
+- Encourages professional help when needed
+
+## Support
+
+If you encounter issues:
+
+1. Check the troubleshooting section above
+2. Ensure all requirements are met
+3. Try running in a fresh virtual environment
+4. Check the console output for specific error messages
+
+---
+
+**Important**: This chatbot is for educational and support purposes only. It is not a substitute for professional mental health care. If you or someone you know is in crisis, please contact emergency services or mental health professionals immediately.
