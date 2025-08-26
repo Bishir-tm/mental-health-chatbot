@@ -10,8 +10,9 @@ env/
 venv/
 ENV/
 .venv/
-.env
-
+.env/
+models/
+error.txt/
 # Flask instance folder (stores runtime files, configs, uploads)
 instance/
 
