@@ -1,96 +1,102 @@
+
 import os
-from flask import Flask, request, jsonify, render_template
+import json
+from flask import Flask, render_template, request, jsonify
 import google.generativeai as genai
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 
-# Configure Google Gemini API
-# IMPORTANT: Replace 'YOUR_API_KEY' with your actual Google Gemini API key
-# or set it as an environment variable (recommended).
-# For example: os.environ.get("GOOGLE_API_KEY")
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY", "YOUR_API_KEY"))
-
-# Initialize the Gemini model
-model = genai.GenerativeModel('gemini-2.0-flash')
-
-# Define the prompts
-ASSESS_RISK_PROMPT = """You are a risk assessment expert for a mental health chatbot.
-
-Based on the user's input, determine if the user is in a high-risk situation requiring professional help.
-If the user is in a high-risk situation, set isHighRisk to true and generate a message suggesting a professional referral.
-If the user is not in a high-risk situation, set isHighRisk to false and leave the response empty.
-
-User Input: {user_input}
-"""
-
-THERAPEUTIC_RESPONSE_PROMPT = """You are a chatbot designed to provide Cognitive Behavioral Therapy (CBT)-based support. Your goal is to help users identify and challenge their negative thought patterns.
-
-User History: {user_history}
-
-Based on the user's input, generate a response that is:
-1.  **Empathetic and Validating**: Start by acknowledging the user's feelings.
-2.  **CBT-Focused**: Gently guide the user to examine their thoughts. Help them identify potential cognitive distortions (e.g., all-or-nothing thinking, catastrophizing).
-3.  **Action-Oriented**: Encourage a small, manageable step, like reframing a thought or a simple behavioral experiment.
-4.  **Concise**: Keep the response to a few clear, supportive sentences.
-
-Avoid giving generic advice. Instead, ask questions that prompt reflection.
-
-User Input: {user_input}
-Response:"""
+# Configure the Gemini API
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 @app.route('/')
-def home():
+def index():
     return render_template('index.html')
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    data = request.json
-    chat_history = data.get('chatHistory', [])
+    data = request.get_json()
+    messages = data.get('messages', [])
 
-    user_messages = [msg for msg in chat_history if msg['role'] == 'user']
-    latest_user_message = user_messages[-1] if user_messages else None
+    if not messages:
+        return jsonify({'error': 'No messages found.'}), 400
 
-    if not latest_user_message:
-        return jsonify({'error': 'No user message found.'}), 400
-
-    user_input = latest_user_message['content']
-    user_history = "\n".join([f"User: {msg['content']}" for msg in user_messages[:-1]])
-
+    # The rest of the AI logic will go here
     try:
-        # Risk Assessment
-        risk_assessment_full_prompt = ASSESS_RISK_PROMPT.format(user_input=user_input)
-        risk_response = model.generate_content(risk_assessment_full_prompt)
-        
-        # Assuming the model's response for risk assessment can be parsed to determine high risk
-        # This part needs careful handling as Gemini's output might not be directly parsable as JSON
-        # For simplicity, let's assume a keyword check or a structured output from Gemini
-        # In a real scenario, you'd use a more robust parsing mechanism or a function calling approach
-        
-        # Placeholder for risk assessment logic:
-        # If the model's response contains certain keywords indicating high risk,
-        # or if you can structure the prompt to return a boolean/JSON.
-        # For now, let's assume if the response contains "professional help" or "high risk"
-        # it's considered high risk. This is a very basic and potentially unreliable check.
-        
-        is_high_risk = "professional help" in risk_response.text.lower() or "high risk" in risk_response.text.lower()
-        
-        if is_high_risk:
-            # Extract the suggested referral message from the risk_response
-            # This also needs robust parsing based on how your prompt is designed
-            response_content = risk_response.text # Assuming the full response is the referral message
-            return jsonify({'response': response_content})
-        else:
-            # Therapeutic Response
-            therapeutic_full_prompt = THERAPEUTIC_RESPONSE_PROMPT.format(
-                user_input=user_input,
-                user_history=user_history
-            )
-            therapeutic_response = model.generate_content(therapeutic_full_prompt)
-            return jsonify({'response': therapeutic_response.text})
+        user_input = messages[-1]['content']
+        chat_history = messages[:-1]
+
+        # Assess risk
+        risk_assessment = assess_risk(user_input)
+
+        if risk_assessment.get('is_high_risk'):
+            return jsonify({'response': risk_assessment.get('response'), 'crisis': True})
+
+        # Generate therapeutic response
+        therapeutic_response = generate_therapeutic_response(user_input, chat_history)
+        return jsonify({'response': therapeutic_response, 'crisis': False})
 
     except Exception as e:
-        print(f"Error getting AI response: {e}")
-        return jsonify({'error': 'An error occurred while processing your request. Please try again.'}), 500
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while processing your request.'}), 500
+
+def assess_risk(user_input):
+    prompt = f"""You are a risk assessment expert for a mental health chatbot. Your primary responsibility is to identify any indication of a user being in an imminent crisis situation. It is crucial to avoid over-reacting to general feelings of depression or hopelessness. Only escalate if there is a clear and immediate danger.
+
+    Based on the user's input, determine if the user is in a high-risk situation requiring immediate professional help. A high-risk situation is defined by explicit statements of self-harm, a plan to self-harm, or an intent to act on suicidal thoughts immediately.
+
+    Respond with a JSON object with two keys: 'is_high_risk' (boolean) and 'response' (string).
+
+    If the user is in a high-risk situation (imminent danger):
+    1. Set is_high_risk to true.
+    2. Generate a response that is first calming and empathetic, then clearly and directly provides resources. The response should be something like: "It sounds like you are going through a very difficult time, and I want you to know that your safety is the most important thing. Please connect with someone who can support you right now. You can call the Nigerian emergency hotline at 112, or reach out to the Suicide Research and Prevention Initiative (SURPIN) at 08092106463."
+
+    If the user is NOT in a high-risk situation (no imminent danger, even if they express sadness or hopelessness):
+    1. Set is_high_risk to false.
+    2. Leave the response field empty.
+
+    User Input: {user_input}
+    """
+
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    response = model.generate_content(prompt)
+    
+    # Debugging: Print the raw response from the API
+    print("Gemini API Response (Risk Assessment):", response.text)
+
+    try:
+        # Attempt to parse the JSON response
+        return json.loads(response.text)
+    except json.JSONDecodeError:
+        # Handle cases where the response is not valid JSON
+        return {"is_high_risk": False, "response": ""}
+
+def generate_therapeutic_response(user_input, chat_history):
+    history_str = "\n".join([f"{msg['role']}: {msg['content']}" for msg in chat_history])
+
+    prompt = f"""You are a chatbot designed to provide Cognitive Behavioral Therapy (CBT)-based support. Your goal is to help users identify and challenge their negative thought patterns.
+
+    User History:
+    {history_str}
+
+    Based on the user's input, generate a response that is:
+    1.  **Empathetic and Validating**: Start by acknowledging the user's feelings.
+    2.  **CBT-Focused**: Gently guide the user to examine their thoughts. Help them identify potential cognitive distortions (e.g., all-or-nothing thinking, catastrophizing).
+    3.  **Action-Oriented**: Encourage a small, manageable step, like reframing a thought or a simple behavioral experiment.
+    4.  **Concise**: Keep the response to a few clear, supportive sentences.
+
+    Avoid giving generic advice. Instead, ask questions that prompt reflection.
+
+    User Input: {user_input}
+    Response:"""
+
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    response = model.generate_content(prompt)
+    return response.text
+
 
 if __name__ == '__main__':
     app.run(debug=True)

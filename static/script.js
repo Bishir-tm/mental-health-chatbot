@@ -1,151 +1,90 @@
-// script.js
-
 document.addEventListener('DOMContentLoaded', () => {
-    const messagesContainer = document.getElementById('messages');
-    const chatInput = document.getElementById('chatInput');
-    const chatForm = document.getElementById('chatForm');
+    const chatForm = document.getElementById('chat-form');
+    const chatInput = document.getElementById('chat-input');
+    const chatMessages = document.getElementById('chat-messages');
     const newChatBtn = document.getElementById('newChatBtn');
-    const messagesEndRef = document.getElementById('messagesEndRef');
-    const sendBtn = document.getElementById('sendBtn');
 
-    let messages = [
-        { id: 'init', role: 'assistant', content: "Hello. How are you feeling today?" }
-    ];
-    let isLoading = false;
+    let messages = [];
 
-    const scrollToBottom = () => {
-        messagesEndRef.scrollIntoView({ behavior: 'smooth' });
-    };
-
-    const displayMessage = (message) => {
-        const messageBubble = document.createElement('div');
-        messageBubble.classList.add('message-bubble', message.role);
-
-        if (message.role === 'assistant') {
-            const avatar = document.createElement('div');
-            avatar.classList.add('avatar', 'assistant');
-            avatar.textContent = 'AI';
-            messageBubble.appendChild(avatar);
-        }
-
-        const messageContent = document.createElement('div');
-        messageContent.classList.add('message-content');
-        messageContent.innerHTML = `<p>${message.content}</p>`;
-        messageBubble.appendChild(messageContent);
-
-        if (message.role === 'user') {
-            const avatar = document.createElement('div');
-            avatar.classList.add('avatar', 'user');
-            avatar.textContent = 'User';
-            messageBubble.appendChild(avatar);
-        }
-
-        messagesContainer.appendChild(messageBubble);
+    const addMessage = (role, content) => {
+        const message = { role, content };
+        messages.push(message);
+        renderMessages();
     };
 
     const renderMessages = () => {
-        messagesContainer.innerHTML = ''; // Clear existing messages
-        messages.forEach(displayMessage);
-        scrollToBottom();
+        chatMessages.innerHTML = '';
+        messages.forEach(message => {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add(message.role === 'user' ? 'user-message' : 'assistant-message');
+            messageElement.textContent = message.content;
+            chatMessages.appendChild(messageElement);
+        });
+        chatMessages.scrollTop = chatMessages.scrollHeight;
     };
 
     const showLoadingIndicator = () => {
-        isLoading = true;
-        sendBtn.disabled = true;
-        chatInput.disabled = true;
-
-        const loadingBubble = document.createElement('div');
-        loadingBubble.classList.add('message-bubble', 'assistant');
-        loadingBubble.id = 'loadingIndicator';
-
-        const avatar = document.createElement('div');
-        avatar.classList.add('avatar', 'assistant');
-        avatar.textContent = 'AI';
-        loadingBubble.appendChild(avatar);
-
-        const loadingContent = document.createElement('div');
-        loadingContent.classList.add('message-content');
-        loadingContent.innerHTML = `
-            <div class="loading-indicator">
-                <span class="loading-dot"></span>
-                <span class="loading-dot"></span>
-                <span class="loading-dot"></span>
-            </div>
-        `;
-        loadingBubble.appendChild(loadingContent);
-        messagesContainer.appendChild(loadingBubble);
-        scrollToBottom();
+        const loadingElement = document.createElement('div');
+        loadingElement.classList.add('assistant-message');
+        loadingElement.innerHTML = '<div class="loading-dots"><span></span><span></span><span></span></div>';
+        chatMessages.appendChild(loadingElement);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
     };
 
-    const hideLoadingIndicator = () => {
-        isLoading = false;
-        sendBtn.disabled = false;
-        chatInput.disabled = false;
-        const loadingIndicator = document.getElementById('loadingIndicator');
-        if (loadingIndicator) {
-            loadingIndicator.remove();
+    const removeLoadingIndicator = () => {
+        const loadingElement = chatMessages.querySelector('.loading-dots');
+        if (loadingElement) {
+            loadingElement.parentElement.remove();
         }
     };
 
-    const handleSubmit = async (e) => {
+    chatForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (!chatInput.value.trim() || isLoading) return;
+        const userInput = chatInput.value.trim();
+        if (!userInput) return;
 
-        const userMessage = {
-            id: Date.now().toString(),
-            role: 'user',
-            content: chatInput.value.trim(),
-        };
-
-        messages.push(userMessage);
-        displayMessage(userMessage);
+        addMessage('user', userInput);
         chatInput.value = '';
-        scrollToBottom();
-
         showLoadingIndicator();
 
         try {
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ chatHistory: messages }),
+                body: JSON.stringify({ messages })
             });
 
             const data = await response.json();
+            removeLoadingIndicator();
 
             if (data.error) {
-                alert(`Error: ${data.error}`); // Simple error display
-                messages.pop(); // Remove user message if AI fails
-            } else if (data.response) {
-                const assistantMessage = {
-                    id: Date.now().toString() + '-ai',
-                    role: 'assistant',
-                    content: data.response,
-                };
-                messages.push(assistantMessage);
-                displayMessage(assistantMessage);
+                alert(data.error);
+            } else {
+                addMessage('assistant', data.response);
+                if (data.crisis) {
+                    const crisisAlert = document.createElement('div');
+                    crisisAlert.classList.add('alert', 'alert-danger', 'mt-3');
+                    crisisAlert.innerHTML = `
+                        <h4 class="alert-heading">Immediate Support Available</h4>
+                        <p>It sounds like you are going through a very difficult time. Your safety is the most important thing. Please reach out for help.</p>
+                        <hr>
+                        <p class="mb-0">You can call the Nigerian emergency hotline at 112, or reach out to the Suicide Research and Prevention Initiative (SURPIN) at 08092106463.</p>
+                    `;
+                    chatMessages.appendChild(crisisAlert);
+                }
             }
         } catch (error) {
-            console.error('Fetch error:', error);
-            alert('An error occurred while connecting to the server. Please try again.');
-            messages.pop(); // Remove user message if network fails
-        } finally {
-            hideLoadingIndicator();
-            scrollToBottom();
+            removeLoadingIndicator();
+            alert('An error occurred while processing your request. Please try again.');
         }
-    };
-
-    chatForm.addEventListener('submit', handleSubmit);
-
-    newChatBtn.addEventListener('click', () => {
-        messages = [
-            { id: 'init', role: 'assistant', content: "Hello. How are you feeling today?" }
-        ];
-        renderMessages();
     });
 
-    // Initial render
-    renderMessages();
+    newChatBtn.addEventListener('click', () => {
+        messages = [];
+        chatMessages.innerHTML = '<div class="assistant-message">Hello. How are you feeling today?</div>';
+    });
+
+    addMessage('assistant', 'Hello. How are you feeling today?');
 });

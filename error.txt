@@ -1,2 +1,11 @@
-Error getting AI response: 404 models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
-127.0.0.1 - - [13/Aug/2025 17:21:14] "POST /api/chat HTTP/1.1" 500 -
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 358-371-149
+127.0.0.1 - - [23/Aug/2025 18:33:04] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [23/Aug/2025 18:33:04] "GET /static/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [23/Aug/2025 18:33:04] "GET /static/script.js HTTP/1.1" 200 -
+127.0.0.1 - - [23/Aug/2025 18:33:05] "GET /favicon.ico HTTP/1.1" 404 -
+Error: 404 models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+127.0.0.1 - - [23/Aug/2025 18:33:14] "POST /api/chat HTTP/1.1" 500 -
