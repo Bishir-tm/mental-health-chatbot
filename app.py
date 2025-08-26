@@ -53,46 +53,57 @@ def initialize_model():
         print(f"Error loading model: {e}")
         return False
 
-def generate_response(prompt, max_length=200):
-    """Generate response using TinyLLaMA"""
+def generate_response(prompt, max_length=50):  # Even shorter
+    """Generate response using TinyLLaMA with aggressive cleaning"""
     global text_generator
     
     try:
-        # Format prompt for chat model
-        formatted_prompt = f"<|system|>\nYou are a helpful mental health support assistant trained in Cognitive Behavioral Therapy (CBT). Provide empathetic, supportive responses.\n<|user|>\n{prompt}\n<|assistant|>\n"
+        # Simpler prompt format
+        formatted_prompt = f"You are a supportive mental health assistant. User says: {prompt}\nYour response:"
         
-        # Generate response
         outputs = text_generator(
             formatted_prompt,
-            max_length=len(formatted_prompt.split()) + max_length,
+            max_new_tokens=max_length,
             num_return_sequences=1,
             pad_token_id=tokenizer.eos_token_id,
             eos_token_id=tokenizer.eos_token_id,
+            truncation=True,
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.9,
+            repetition_penalty=1.1
         )
         
-        # Extract the generated text
         generated_text = outputs[0]['generated_text']
         
-        # Extract only the assistant's response
-        if "<|assistant|>" in generated_text:
-            response = generated_text.split("<|assistant|>")[-1].strip()
+        # Extract response after "Your response:"
+        if "Your response:" in generated_text:
+            response = generated_text.split("Your response:")[-1].strip()
         else:
             response = generated_text[len(formatted_prompt):].strip()
         
-        # Clean up the response
-        response = response.replace("<|end|>", "").replace("<|endoftext|>", "").strip()
+        # Aggressive cleaning - stop at ANY indication of dialogue
+        dialogue_indicators = [
+            "User", "user", "Human", "human", "Assistant", "assistant",
+            "Q:", "A:", "Question:", "Answer:", "Me:", "You:", "\n"
+        ]
         
-        # Limit response length
-        sentences = response.split('. ')
-        if len(sentences) > 3:
-            response = '. '.join(sentences[:3]) + '.'
+        for indicator in dialogue_indicators:
+            if indicator in response:
+                response = response.split(indicator)[0].strip()
         
-        return response if response else "I understand you're going through something difficult. Can you tell me more about how you're feeling?"
+        # Take only the first sentence
+        first_sentence = response.split('.')[0] + '.' if '.' in response else response
+        
+        # Remove any remaining problematic patterns
+        first_sentence = first_sentence.replace('"', '').replace("'", '').strip()
+        
+        return first_sentence if first_sentence and len(first_sentence) > 5 else "I understand. Can you tell me more about how you're feeling?"
         
     except Exception as e:
         print(f"Error generating response: {e}")
         return "I'm here to listen and support you. Can you share what's on your mind today?"
-
+                        
 @app.route('/')
 def index():
     return render_template('index.html')

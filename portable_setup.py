@@ -67,7 +67,7 @@ print("Model downloaded successfully!")
     except subprocess.CalledProcessError as e:
         print(f"Error downloading model: {e}")
         return False
-        
+
 def create_portable_app():
     """Create modified app.py that uses local cache"""
     print("Creating portable app.py...")
@@ -146,15 +146,20 @@ def generate_response(prompt, max_length=200):
     
     try:
         # Format prompt for chat model
-        formatted_prompt = f"<|system|>\\nYou are a helpful mental health support assistant trained in Cognitive Behavioral Therapy (CBT). Provide empathetic, supportive responses.\\n<|user|>\\n{prompt}\\n<|assistant|>\\n"
+        formatted_prompt = f"<|system|>\nYou are a helpful mental health support assistant trained in Cognitive Behavioral Therapy (CBT). Provide empathetic, supportive responses.\n<|user|>\n{prompt}\n<|assistant|>\n"
         
-        # Generate response
+        # Generate response with max_new_tokens instead of max_length
         outputs = text_generator(
             formatted_prompt,
-            max_length=len(formatted_prompt.split()) + max_length,
+            max_new_tokens=max_length,  # This is the key fix!
             num_return_sequences=1,
             pad_token_id=tokenizer.eos_token_id,
             eos_token_id=tokenizer.eos_token_id,
+            truncation=True,  # Add explicit truncation
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.9,
+            repetition_penalty=1.1
         )
         
         # Extract the generated text

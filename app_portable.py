@@ -66,7 +66,7 @@ def initialize_model():
         print("Make sure the model files are in the models/transformers_cache directory")
         return False
 
-def generate_response(prompt, max_length=200):
+def generate_response(prompt, max_length=100):  # Reduced max_length
     """Generate response using TinyLLaMA"""
     global text_generator
     
@@ -74,13 +74,18 @@ def generate_response(prompt, max_length=200):
         # Format prompt for chat model
         formatted_prompt = f"<|system|>\nYou are a helpful mental health support assistant trained in Cognitive Behavioral Therapy (CBT). Provide empathetic, supportive responses.\n<|user|>\n{prompt}\n<|assistant|>\n"
         
-        # Generate response
+        # Generate response with max_new_tokens instead of max_length
         outputs = text_generator(
             formatted_prompt,
-            max_length=len(formatted_prompt.split()) + max_length,
+            max_new_tokens=max_length,
             num_return_sequences=1,
             pad_token_id=tokenizer.eos_token_id,
             eos_token_id=tokenizer.eos_token_id,
+            truncation=True,
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.9,
+            repetition_penalty=1.1
         )
         
         # Extract the generated text
@@ -92,20 +97,40 @@ def generate_response(prompt, max_length=200):
         else:
             response = generated_text[len(formatted_prompt):].strip()
         
-        # Clean up the response
+        # Clean up the response - IMPROVED CLEANING
         response = response.replace("<|end|>", "").replace("<|endoftext|>", "").strip()
         
-        # Limit response length
+        # Stop at common dialogue markers
+        stop_markers = [
+            "User:", "user:", "USER:",
+            "Assistant:", "assistant:", "ASSISTANT:", 
+            "Human:", "human:", "HUMAN:",
+            "\nUser", "\nuser", "\nUSER",
+            "\nAssistant", "\nassistant", "\nASSISTANT",
+            "\nHuman", "\nhuman", "\nHUMAN"
+        ]
+        
+        for marker in stop_markers:
+            if marker in response:
+                response = response.split(marker)[0].strip()
+        
+        # Clean up any remaining formatting
+        response = response.replace("\n\n", " ").replace("\n", " ").strip()
+        
+        # Limit to reasonable length - get first few sentences
         sentences = response.split('. ')
-        if len(sentences) > 3:
-            response = '. '.join(sentences[:3]) + '.'
+        if len(sentences) > 2:  # Limit to 2 sentences for cleaner responses
+            response = '. '.join(sentences[:2]) + '.'
+        
+        # Final cleanup - remove any trailing dialogue patterns
+        response = response.split('"')[0] if '"' in response else response
         
         return response if response else "I understand you're going through something difficult. Can you tell me more about how you're feeling?"
         
     except Exception as e:
         print(f"Error generating response: {e}")
         return "I'm here to listen and support you. Can you share what's on your mind today?"
-
+                
 @app.route('/')
 def index():
     return render_template('index.html')
